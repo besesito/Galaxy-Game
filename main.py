@@ -1,18 +1,24 @@
 import random
 
 from kivy.config import Config
+from kivy.lang import Builder
+from kivy.uix.relativelayout import RelativeLayout
+
 Config.set('graphics', 'width', '900')
 Config.set('graphics', 'height', '400')
 from kivy import platform
 from kivy.core.window import Window
 from kivy.app import App
 from kivy.graphics import Color, Line, Quad, Triangle
-from kivy.properties import NumericProperty, Clock
-from kivy.uix.widget import Widget
+from kivy.properties import NumericProperty, Clock, ObjectProperty, StringProperty
 
-class MainWidget(Widget):
+Builder.load_file("menu.kv")
+
+class MainWidget(RelativeLayout):
     from transforms import transform, transform_2D, transform_perspective
     from user_actions import on_touch_down, on_keyboard_down, on_keyboard_up, on_touch_up, keyboard_closed
+
+    menu_widget = ObjectProperty()
     perspective_point_x = NumericProperty(0)
     perspective_point_y = NumericProperty(0)
 
@@ -24,7 +30,7 @@ class MainWidget(Widget):
     H_LINES_SPACING = .1
     horizontal_lines = []
 
-    SPEED = .1
+    SPEED = .8
     current_offset_y = 0
     current_y_loop = 0
 
@@ -42,14 +48,20 @@ class MainWidget(Widget):
     SHIP_BASE_Y = 0.04
     ship_coordinates = [(0,0), (0, 0), (0, 0)]
 
+    state_game_over = False
+    state_game_has_started = False
+
+    menu_title = StringProperty("M - T  E  C  H      G  A  M  E")
+    menu_button_title = StringProperty("Graj")
+
     def __init__(self, **kwargs):
         super(MainWidget, self).__init__(**kwargs)
         self.init_vertical_lines()
         self.init_horizontal_lines()
         self.init_tiles()
         self.init_ship()
-        self.pre_fill_tiles_coordinates()
-        self.generate_tiles_coordinates()
+        self.reset_game()
+
 
         if self.is_desktop():
             self._keyboard = Window.request_keyboard(self.keyboard_closed, self)
@@ -57,6 +69,20 @@ class MainWidget(Widget):
             self._keyboard.bind(on_key_up=self.on_keyboard_up)
 
         Clock.schedule_interval(self.update, 1.0 / 60.0)
+
+    def reset_game(self):
+        self.current_offset_y = 0
+        self.current_y_loop = 0
+        self.current_speed_x = 0
+        self.current_offset_x = 0
+
+        self.tiles_coordinates = []
+        self.pre_fill_tiles_coordinates()
+        self.generate_tiles_coordinates()
+
+
+
+        self.state_game_over = False
 
     def is_desktop(self):
         if platform in ("linux", "win", "macosx"):
@@ -222,6 +248,7 @@ class MainWidget(Widget):
             x2, y2 = self.transform(xmax, line_y)
             self.horizontal_lines[i].points = [x1, y1, x2, y2]
 
+
     def update(self, dt):
         time_factor = dt*60
         self.update_vertical_lines()
@@ -229,23 +256,32 @@ class MainWidget(Widget):
         self.update_tiles()
         self.update_ship()
 
-        speed_y = self.SPEED * self.height / 100
-        self.current_offset_y += speed_y * time_factor
+        if not self.state_game_over and self.state_game_has_started:
+
+            speed_y = self.SPEED * self.height / 100
+            self.current_offset_y += speed_y * time_factor
 
 
-        spacing_y = self.H_LINES_SPACING * self.height
-        if self.current_offset_y >= spacing_y:
-            self.current_offset_y -= spacing_y
-            self.current_y_loop += 1
-            self.generate_tiles_coordinates()
+            spacing_y = self.H_LINES_SPACING * self.height
+            while self.current_offset_y >= spacing_y:
+                self.current_offset_y -= spacing_y
+                self.current_y_loop += 1
+                self.generate_tiles_coordinates()
 
-        speed_x = self.current_speed_x * self.width / 100
+            speed_x = self.current_speed_x * self.width / 100
 
-        self.current_offset_x += speed_x * time_factor
+            self.current_offset_x += speed_x * time_factor
 
-        if not self.check_ship_collision():
-            print("GAME OVER")
+        if not self.check_ship_collision() and not self.state_game_over:
+            self.state_game_over = True
+            self.menu_title = "G  A  M  E     O  V  E  R"
+            self.menu_button_title = "Restart"
+            self.menu_widget.opacity = 1
 
+    def on_menu_button_pressed(self):
+        self.reset_game()
+        self.state_game_has_started = True
+        self.menu_widget.opacity = 0
 
 
 class GalaxyApp(App):
